@@ -1,0 +1,10 @@
+# macOS
+.DS_Store
+
+# 本機工具狀態（審查 marker 等），非專案內容
+.claude/
+
+# 音效檔不納入版控（第三方版權素材，見 audio/README.md）
+audio/*.mp3
+audio/*.wav
+audio/*.m4a

@@ -4,7 +4,7 @@ Technical appendix to [MAPA](README.md), for anyone who pokes at macOS power man
 
 **Most of this holds no matter which tool you pick.** `exit 0` does not mean a command worked. Fail-safe points in different directions depending on the operation. You can test a script that modifies system settings without modifying any.
 
-This is a toy, not a product, and it will earn nobody any money. If one of these notes saves you a few hours chasing a command that reports success while doing nothing, it paid for itself.
+This is a toy, not a product. If one of these notes saves you a few hours chasing a command that reports success while doing nothing, it paid for itself.
 
 Tested on: Apple M3 Pro / macOS 26.7 (build 25G229) / `/bin/bash` 3.2.57.
 

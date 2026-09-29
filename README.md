@@ -2,7 +2,7 @@
 
 **Hand a long task to an AI coding agent, shut the lid, walk out. It keeps working, then shuts itself down when battery, time, or heat hits your limit.**
 
-One bash script, 250 lines, **zero dependencies, zero install**. **This is a toy, not a product.** I'd rather it stay simple and readable than cover every case. Nobody will make money from it. It might keep your laptop from cooking in a backpack, or save you a few hours chasing a command that reports success while doing nothing.
+One bash script, 250 lines, **zero dependencies, zero install**. **This is a toy, not a product.** I'd rather it stay simple and readable than cover every case. It might keep your laptop from cooking in a backpack, or save you a few hours chasing a command that reports success while doing nothing.
 
 ```bash
 ./mapa.sh 180 15    # run 3 hours, wrap up when battery drops to 15%

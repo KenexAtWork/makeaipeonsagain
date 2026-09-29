@@ -1,32 +1,33 @@
 # MAPA — Make AI Peons Again
 
-**把長任務丟給 AI coding agent，闔上筆電出門，它繼續跑；電量／時間／溫度任一條件到了，自己安全收工。**
+**Hand a long task to an AI coding agent, shut the lid, walk out. It keeps working — and shuts itself down safely when battery, time, or heat hits your limit.**
 
-一支 bash 腳本，250 行，**零依賴、零安裝**。不是產品，就是個順手的小工具——不求完美，但簡單、看得懂、改得動。
+One bash script, 250 lines, **zero dependencies, zero install**. **Not a product — a fun little toy**, and worth saying twice. It doesn't aim to be perfect; it aims to be simple, readable, and easy to change. Nobody's going to make money off it, but it might keep a laptop from cooking in a backpack, or save someone a few hours of chasing a command that silently does nothing.
 
 ```bash
-./mapa.sh 180 15    # 跑 3 小時，電量降到 15% 就收工休眠
+./mapa.sh 180 15    # run 3 hours, wrap up when battery drops to 15%
 ```
 
-實測環境：Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57。
+Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
 
-> 想直接看技術細節（踩到的坑、怎麼驗的）→ **[NOTES.md](NOTES.md)**
+> 🇹🇼 中文版 → **[README.zh-TW.md](README.zh-TW.md)**
+> Want the technical details — pitfalls hit, how it was verified? → **[NOTES.md](NOTES.md)**
 
 ---
 
-## 怎麼用
+## Usage
 
 ```bash
-./mapa.sh                # 預設：60 分鐘、電量下限 10%
-./mapa.sh 180 15         # 3 小時、電量 15%
-./mapa.sh 0 20           # 無時間上限，跑到電量剩 20%
+./mapa.sh                # defaults: 60 minutes, 10% battery floor
+./mapa.sh 180 15         # 3 hours, 15% battery floor
+./mapa.sh 0 20           # no time limit, run until battery hits 20%
 ```
 
-兩個參數都是整數：**分鐘數**（`0` = 無上限）、**電量下限百分比**（必須在 0–100，超出會拒絕執行）。
+Both arguments are integers: **minutes** (`0` = no limit) and **battery floor in percent** (must be 0–100; anything higher is rejected).
 
-會問一次 sudo 密碼（`pmset` 和 `powermetrics` 需要）。之後就可以闔蓋出門。
+It asks for your sudo password once (`pmset` and `powermetrics` need it). After that, close the lid and go.
 
-執行中的畫面：
+What it looks like while running:
 
 ```
 [2026/09/28 23:31:57 UTC+8] >>> 防休眠已啟用！隨時可按 Ctrl + C 取消。
@@ -36,249 +37,248 @@
 [2026/09/28 23:32:28 UTC+8] >>> 機身溫度已恢復正常，解除強制低耗電模式。
 ```
 
-`Ctrl + C` 隨時可中斷，會把所有改過的系統設定還原回去。
+> Log messages are in Traditional Chinese (the script was written that way and I kept it). Timestamps show the UTC offset, computed live from `date +%z` rather than hardcoded — half-hour zones like `UTC+5:45` and `UTC-3:30` are handled correctly.
 
-> 附帶一點惡趣味：啟動播 WC3 獸族苦工的 "Work work"、過熱播 "Under attack"、收工播 "Ready to work"。
-> **音效檔沒有納入版控**（第三方版權素材），請自備——檔名見 [`audio/README.md`](audio/README.md)。缺檔不影響功能，只會 log 一行提示。
+`Ctrl + C` at any time — it restores every system setting it touched.
+
+> A bit of fun baked in: it plays the WC3 orc peon's "Work work" on start, "Under attack" when it detects heat, and "Ready to work" when it wraps up.
+> **Sound files are not in this repo** (third-party copyrighted material) — bring your own; filenames are in [`audio/README.md`](audio/README.md). Missing files don't break anything, you just get one log line saying it skipped them.
 
 ---
 
-## 出門前：讓 Mac 自動連上手機熱點
+## Before you leave: make the Mac auto-connect to your phone's hotspot
 
-**蓋子關著，你沒辦法手動點 Wi-Fi。** 而 agent 要呼叫 API，斷網就等於停工——機器還在耗電，任務卻沒進度。所以出門前得確保 Mac 會自己連上手機熱點。
+**With the lid shut, you can't click a Wi-Fi network.** And an agent that can't reach an API is an agent burning battery for nothing — the machine keeps drawing power while the task makes no progress. So make sure the Mac will connect on its own.
 
-> 以下的 `networksetup` 指令都在 macOS 26.7 上查證過可用；**手機端與系統設定的操作步驟未實測**，各版本 UI 名稱可能略有差異。
+> The `networksetup` commands below were verified on macOS 26.7. **The phone-side and System Settings steps were not tested** — UI labels shift between versions.
 
 ### iPhone
 
-有兩條路，建議**兩條都設好**：
+Two paths. Set up **both**:
 
-**① Instant Hotspot（即時熱點）** — Mac 不需要密碼就能連，iPhone 甚至不必先手動打開熱點開關（Mac 會透過 Bluetooth 請它開）。前置條件：
+**① Instant Hotspot** — the Mac connects without a password, and the iPhone doesn't even need its hotspot toggle flipped first (the Mac asks it over Bluetooth). Requirements:
 
-- Mac 與 iPhone 登入**同一個 Apple Account**
-- 兩邊的 **Wi-Fi 與 Bluetooth 都開著**
-- **Handoff** 開啟（Mac：系統設定 → 一般 → AirDrop 與 Handoff；iPhone：設定 → 一般 → AirPlay 與接續）
+- Mac and iPhone signed into the **same Apple Account**
+- **Wi-Fi and Bluetooth on** on both
+- **Handoff** enabled (Mac: Settings → General → AirDrop & Handoff; iPhone: Settings → General → AirPlay & Continuity)
 
-**② 固定 SSID ＋ 密碼（比較可靠，也適用 Android）** — 讓 Mac 把熱點當成一般的「已知網路」記住：
+**② Fixed SSID + password** — more reliable, and it's the only option for Android. Makes the Mac treat the hotspot as an ordinary known network:
 
-- iPhone：設定 → 個人熱點 → 設定「Wi-Fi 密碼」
-- 熱點的 SSID 就是裝置名稱，可在 設定 → 一般 → 關於本機 → 名稱 修改（**建議改成沒有特殊字元的名字**，省掉引號轉義的麻煩）
-- 然後用密碼在 Mac 上連一次 → 它就進了偏好網路清單，之後會自動加入
+- iPhone: Settings → Personal Hotspot → set a Wi-Fi password
+- The hotspot SSID is the device name, changeable at Settings → General → About → Name (**pick something without special characters** to save yourself quoting headaches)
+- Connect once from the Mac using the password → it lands in the preferred-networks list and will be joined automatically afterwards
 
-這條路不依賴 Apple Account、Bluetooth 或 Handoff，少三個失敗點。
+This path doesn't depend on Apple Account, Bluetooth, or Handoff — three fewer things to fail.
 
-### 🔑 關鍵設定：自動加入熱點
+### 🔑 The setting people miss: auto-join hotspots
 
-**光是「記住熱點」還不會自動連**——macOS 預設不主動加入個人熱點（怕吃掉你的手機流量）。要打開：
+**Remembering the hotspot isn't enough.** macOS won't join a personal hotspot on its own by default (it's trying not to eat your cellular data). Turn it on:
 
-**系統設定 → Wi-Fi → 往下找「詢問是否加入熱點」（Ask to join hotspots）→ 改成「自動」（Automatic）**
+**System Settings → Wi-Fi → scroll down to "Ask to join hotspots" → set to "Automatically"**
 
-三個選項的差別：
-
-| 選項 | 行為 |
+| Option | Behaviour |
 |---|---|
-| 永不 / Never | 完全不碰熱點 |
-| 詢問 / Ask | 跳通知問你（**闔蓋出門時等於不會連**）|
-| **自動 / Automatic** | 沒有已知 Wi-Fi 可用時，自動加入找得到的熱點 ✓ |
+| Never | Ignores hotspots entirely |
+| Ask | Prompts you — **which means it won't connect while the lid is shut** |
+| **Automatically** | Joins an available hotspot when no known Wi-Fi is around ✓ |
 
-沒改這一項，前面兩條路都白設。
+Skip this and both paths above are wasted.
 
-### 用指令做（已查證可用）
+### Doing it from the command line (verified)
 
 ```bash
-# Wi-Fi 介面代號（多數 Mac 是 en0）
+# Find your Wi-Fi interface (usually en0)
 networksetup -listallhardwareports | grep -A1 "Wi-Fi"
 
-# 立刻連上熱點（連成功也會把它記進已知網路）
-networksetup -setairportnetwork en0 "MyiPhone" "密碼"
+# Connect now (a successful connect also records it as a known network)
+networksetup -setairportnetwork en0 "MyiPhone" "password"
 
-# 明確加進偏好清單並放到第一優先（index 0 = 最優先）
-networksetup -addpreferredwirelessnetworkatindex en0 "MyiPhone" 0 WPA2PSK "密碼"
+# Explicitly add it to the preferred list at top priority (index 0)
+networksetup -addpreferredwirelessnetworkatindex en0 "MyiPhone" 0 WPA2PSK "password"
 
-# 確認目前連上什麼
+# Check what you're on
 networksetup -getairportnetwork en0
 
-# 看偏好順序（前幾名才是實際會優先連的）
+# Check preference order (only the top few really matter)
 networksetup -listpreferredwirelessnetworks en0 | head
 ```
 
-把熱點放在 index 0 的意義：如果出門前 Mac 還連著公司或家裡的 Wi-Fi，離開範圍後它會**按偏好順序**找下一個——排前面才會優先試熱點。
+Why index 0 matters: if the Mac is still on your office or home Wi-Fi when you leave, it walks the **preference order** looking for the next network as you go out of range — put the hotspot near the top so it gets tried first.
 
-### 驗一下真的會自動連
+### Verify it actually auto-connects
 
-別靠「應該可以」。關掉再打開 Wi-Fi，看它會不會自己回來：
+Don't trust "it should work." Toggle Wi-Fi off and on and see whether it comes back on its own:
 
 ```bash
 networksetup -setairportpower en0 off
 sleep 5
 networksetup -setairportpower en0 on
 sleep 20
-networksetup -getairportnetwork en0     # 應該顯示你的熱點
+networksetup -getairportnetwork en0     # should show your hotspot
 ```
 
 ### Android
 
-沒有 Instant Hotspot 的等價機制（除非同品牌生態，例如 Samsung 自家裝置間的 Auto Hotspot），所以只有「固定 SSID ＋ 密碼」這條路：
+There's no Instant Hotspot equivalent (unless you're in a single-vendor ecosystem, e.g. Samsung's Auto Hotspot between its own devices), so it's the fixed SSID + password path only:
 
-1. 設定 → 網路與網際網路 → 熱點與網路共用 → Wi-Fi 熱點
-2. 設好名稱與密碼
-3. **🔴 關掉「自動關閉熱點」**（Turn off hotspot automatically，通常在進階設定裡）
-4. Mac 端用上面的指令連一次
+1. Settings → Network & internet → Hotspot & tethering → Wi-Fi hotspot
+2. Set a name and password
+3. **🔴 Turn OFF "Turn off hotspot automatically"** (usually under advanced settings)
+4. Connect once from the Mac using the commands above
 
-第 3 步是 Android 這條路最重要的一步：**那個選項預設是開的**，只要一段時間沒有裝置連線就自動關閉熱點。路上進一次電梯斷線，熱點就關了，Mac 再也連不回來——而你蓋子是關著的，不會知道。
+Step 3 is the one that matters most on Android: **that option is on by default**, and it shuts the hotspot down after a while with no clients connected. Step into an elevator once, lose the connection, and the hotspot is gone — and your lid is shut, so you won't find out.
 
-### 幾個實際會踩到的
+### Things you'll actually run into
 
-- **iPhone 熱點在沒有裝置連線時會停止廣播。** Instant Hotspot 可以透過 Bluetooth 把它叫醒，但需要兩邊都在藍牙範圍內——手機放口袋、Mac 在背包裡通常沒問題。用②那條路的話，iPhone 端要維持「允許其他人加入」開著。
-- **2.4GHz vs 5GHz**：iPhone 的「最大化相容性」開啟＝走 2.4GHz，慢但穿透好；關閉＝5GHz，快但範圍小。手機和 Mac 都在同一個背包裡的話 5GHz 沒問題；一個在口袋一個在背包，2.4GHz 穩一些。
-- **手機的電量沒人保護。** MAPA 顧的是 Mac 的電量，但開熱點很耗電，**手機可能比 Mac 先沒電**。長時間任務記得幫手機也帶顆行動電源。
-- **手機的省電模式會影響熱點穩定性**，出門前建議關掉。
-- **MAPA 不檢查網路。** 它只管電量／時間／溫度；斷網它不會停，會繼續耗電到條件觸發。所以出門前用上面那個開關 Wi-Fi 的方式確認一次，比較實在。
+- **The iPhone stops advertising its hotspot when nothing is connected.** Instant Hotspot can wake it over Bluetooth, but both devices need to be in range — phone in your pocket, Mac in your bag is usually fine. On path ② keep "Allow Others to Join" on.
+- **2.4 GHz vs 5 GHz**: the iPhone's "Maximize Compatibility" ON = 2.4 GHz, slower but better penetration; OFF = 5 GHz, faster but shorter range. Phone and Mac in the same bag? 5 GHz is fine. One in a pocket, one in a bag? 2.4 GHz is steadier.
+- **Nothing is protecting your phone's battery.** MAPA watches the Mac's battery, but running a hotspot drains a phone fast — **your phone may die before the Mac does**. Bring a power bank for long runs.
+- **Low Power Mode on the phone hurts hotspot stability.** Turn it off before you go.
+- **MAPA doesn't check the network.** It only watches battery, time, and heat. If you lose connectivity it won't stop — it keeps drawing power until one of its limits trips. So verify with the toggle test above before you leave.
 
 ---
 
-## 先懂三件事
+## Three things worth understanding first
 
-如果你不熟 macOS 的電源管理，這三個概念就夠了。
+If you're not deep in macOS power management, these three are enough.
 
-### 1. 為什麼闔蓋會睡，而 `caffeinate` 救不了
+### 1. Why closing the lid puts it to sleep, and why `caffeinate` can't help
 
-`caffeinate` 防的是「閒置休眠」（idle sleep）。但**闔蓋是另一回事**——macOS 的 clamshell 邏輯預設要求接電源＋外接顯示器才會保持運作，沒有就睡。
+`caffeinate` prevents **idle sleep**. But **closing the lid is a different thing** — macOS clamshell logic wants external power *and* an external display before it'll keep running; without them, it sleeps.
 
-要在「純電池、沒外接任何東西、蓋子關著」的狀態下繼續跑，只有一條路：
+To keep running on **battery, with nothing attached, lid shut**, there is exactly one lever:
 
 ```bash
 sudo pmset -a disablesleep 1
 ```
 
-這是個全系統開關，所以需要 sudo，而且**用完一定要還原**（腳本退出時無論走哪條路都會還原）。
+It's a system-wide switch, which is why sudo is needed — and why it **must** be restored on exit (this script restores it on every exit path).
 
-### 2. 熱壓力等級（thermal pressure level）
+### 2. Thermal pressure level
 
-**闔蓋 = 散熱最差的姿勢。** 機器在背包裡悶著跑滿載，這是真實風險，也是這支腳本存在的主要理由。
+**A closed lid is the worst possible cooling posture.** A machine running flat out inside a bag is a real risk, and it's the main reason this script exists.
 
-但 Apple Silicon 上**拿不到 CPU 溫度**——`sysctl` 沒有這個欄位，`powermetrics` 也不吐 die temperature，要讀 SMC sensor 得裝第三方工具。
+But **you can't read CPU temperature on Apple Silicon**: `sysctl` has no die-temp field (only `kern.clockrate` and `hw.tbfrequency`, neither of which is temperature or CPU frequency), `powermetrics` doesn't report die temperature, and reading SMC sensors means a third-party tool — i.e. a dependency.
 
-macOS 提供的替代品是「熱壓力等級」，一個五檔的狀態：
+So the signal used here is macOS's own **thermal pressure level**, a five-step state:
 
 ```bash
 sudo powermetrics -n 1 -i 200 --samplers thermal | grep "pressure level"
 # → Current pressure level: Nominal
 ```
 
-| 等級 | 意思 |
+| Level | What the system is doing |
 |---|---|
-| `Nominal` | 正常，全速跑 |
-| `Moderate` | 溫度略升，風扇加速 |
-| `Heavy` | **系統開始降頻**了，背景工作被抑制 |
-| `Trapping` | 逼近溫度上限，激進降頻與降壓 |
-| `Sleeping` | 降頻已經救不回來，**系統強制休眠以免晶片燒毀** |
+| `Nominal` | Comfortable headroom, running at full speed |
+| `Moderate` | Warming up, fans spinning up, clocks normal or lightly trimmed |
+| `Heavy` | **System is throttling**, `CPU_Speed_Limit` drops, background work suppressed |
+| `Trapping` | Close to TjMax, aggressive down-clocking and voltage reduction |
+| `Sleeping` | Throttling no longer contains it — **system force-sleeps or shuts down** to avoid permanent damage |
 
-> ⚠️ 這張表是社群整理的，**Apple 沒有官方文件**說明各等級對應幾度。等級與攝氏度數的對應不公開，且隨機型與環境而異。
+> ⚠️ That table is community knowledge. **Apple publishes no documentation** mapping these levels to actual temperatures or behaviour, and the mapping varies by model and environment.
 
-### 3. E-Core 與 P-Core
+### 3. E-cores and P-cores
 
-Apple Silicon 有兩種核心：**P-Core**（performance，快但耗電）和 **E-Core**（efficiency，慢但省電）。平常系統自己決定工作放哪。
+Apple Silicon has two core types: **P-cores** (performance — fast, power-hungry) and **E-cores** (efficiency — slow, frugal). Normally the system decides what runs where.
 
-而 macOS 有個機制叫 **QoS（Quality of Service）**——把一個行程標記為「background」，系統就會把它關進 E-Core：
+macOS exposes a lever for this via **QoS (Quality of Service)** — mark a process as "background" and the system confines it to E-cores:
 
 ```bash
-taskpolicy -b -p <pid>    # 降級：關進 E-Core
-taskpolicy -B -p <pid>    # 還原
+taskpolicy -b -p <pid>    # demote: confine to E-cores
+taskpolicy -B -p <pid>    # restore
 ```
 
-**關鍵在於 QoS 會被子行程繼承。** coding agent 是個主行程，跑工具時會 fork 出 `git`、測試、編譯等一大堆子行程——降級主行程一次，這些**全部自動繼承**，不會有哪個突然把 P-Core 叫醒。
+**The key part is that QoS is inherited by child processes.** A coding agent is one main process that forks `git`, test runners, compilers and so on when it uses tools — demote the parent once and **all of those inherit it automatically**, so none of them suddenly wakes a P-core.
 
-出門時 agent 的工作不需要 P-Core 的速度，關進 E-Core 省電又降溫。這是這支腳本最有用的一招。
+When you're out with the lid shut, the agent's work doesn't need P-core speed. Confining it to E-cores saves power and heat. This is the single most useful trick in the script.
 
 ---
 
-## 它做了什麼
+## What it actually does
 
 ```
-  啟動 ──► 設 trap（確保任何中斷都能還原）
-           ├─ pmset -a disablesleep 1     防休眠
-           └─ agent 行程降級至 E-Core
-             │
-             ▼
-  主迴圈（每 10 秒）
+  start ──► install trap (so any interruption still restores)
+            ├─ pmset -a disablesleep 1      prevent sleep
+            └─ demote agent processes to E-cores
+              │
+              ▼
+  main loop (every 10s)
     │
-    ├─[1] 電量 ≤ 閾值 ─────────────────────┐
-    ├─[2] 時間到上限 ──────────────────────┤
-    └─[3] 熱壓力（每 30 秒查一次）          │
-            ├─ Heavy ────► 開低耗電模式，繼續跑
-            ├─ 回到 Nominal ─► 解除低耗電模式
-            └─ Trapping / Sleeping ────────┤
-                                           ▼
-                                  還原全部設定
-                              （防休眠、低耗電、QoS）
-                                           │
-                            ┌──────────────┴──────────────┐
-                            ▼                             ▼
-                      pmset sleepnow              exit 130（Ctrl+C）
+    ├─[1] battery ≤ floor ──────────────────┐
+    ├─[2] time limit reached ───────────────┤
+    └─[3] thermal pressure (checked /30s)   │
+            ├─ Heavy ────► enable low power mode, keep running
+            ├─ back to Nominal ─► disable low power mode
+            └─ Trapping / Sleeping ─────────┤
+                                            ▼
+                                  restore everything
+                          (sleep prevention, low power mode, QoS)
+                                            │
+                             ┌──────────────┴──────────────┐
+                             ▼                             ▼
+                       pmset sleepnow              exit 130 (Ctrl+C)
 ```
 
-三層保護的處置不一樣，值得分清：
+The three guards respond differently, and the difference matters:
 
-| 觸發 | 做什麼 |
+| Trigger | Action |
 |---|---|
-| 電量到下限 | 收工 → 休眠 |
-| 時間到上限 | 收工 → 休眠 |
-| 熱壓力 `Heavy` | **開低耗電模式撐著繼續跑**，溫度回穩就解除 |
-| 熱壓力 `Trapping` / `Sleeping` | **直接收工休眠**（降頻已經救不回來了）|
+| Battery floor | Wrap up → sleep |
+| Time limit | Wrap up → sleep |
+| Thermal `Heavy` | **Enable low power mode and keep going**; disable it once things settle |
+| Thermal `Trapping` / `Sleeping` | **Wrap up and sleep immediately** (throttling isn't going to save it) |
 
-也就是說：**真正靠降頻撐住的是 `Heavy`；到 `Trapping` 腳本的判斷是「該睡了」。**
+In other words: **`Heavy` is the level that throttling can actually hold; by `Trapping` the script's job is to decide "time to sleep."**
 
-三個設計上刻意的地方：
+Three deliberate design points:
 
-1. **`trap` 設在第一個改變系統狀態的指令之前**（`mapa.sh:157` vs `:160`）。否則會有「已經改了設定卻攔不到 Ctrl+C」的空窗。
-2. **四條退出路徑共用同一個 `restore_settings()`**，都經實測確認會執行到。
-3. **還原是回填原值，不是寫死。** 啟動時記下 `ORIG_LOW_POWER`，退出時填回去——不假設你原本沒開低耗電模式。
+1. **The `trap` is installed before the first command that changes system state** (`mapa.sh:157` vs `:160`). Otherwise there's a window where state is already modified but Ctrl+C isn't caught.
+2. **All four exit paths share one `restore_settings()`**, and all four are verified to reach it.
+3. **Restore writes back the original value rather than a hardcoded default.** It records `ORIG_LOW_POWER` at startup and writes that back — it doesn't assume low power mode was off to begin with.
 
 ---
 
-## 知道這些就好
+## Things worth knowing
 
-不是產品，沒打算做到完美。實際會遇到的就這幾個：
+It's not a product and doesn't try to be perfect. These are the ones you'll actually meet:
 
-- **中途新開的 agent 不會被降級** — 只在啟動時掃一次，不做輪詢。
-- **被 `kill -9` 的話行程會卡在降級狀態**（`trap` 攔不到 `SIGKILL`）。手動還原：
+- **Agents started mid-run don't get demoted** — it scans once at startup, no polling.
+- **`kill -9` leaves processes demoted** (`trap` can't catch `SIGKILL`). Manual restore:
   ```bash
   pgrep -f "claude" | xargs -I {} taskpolicy -B -p {}
   ```
-- **熱壓力是單次取樣就判定，沒有 sustained 機制** — 讀一次 100ms 取樣看到 `Trapping` 就休眠，理論上一個瞬時抖動就可能中斷長任務。實務上還沒遇到，但這是已知的脆弱點。
-- **收工時會多吐一行 `Terminated: 15`** — 背景保活 job 被 kill 的 job-control 通知，無害。修它要動 sudo 保活迴圈（那是承重柱，憑證一斷防休眠整個失效），不值得。
-- **用管線或 `$(...)` 抓輸出會卡最多 60 秒** — 孤兒 `sleep` 還持有 stdout 寫入端。在終端直接跑不受影響；要存 log 用 `> file`（重定向不會卡）。
-- **降級目標寫死 `pgrep -f "claude"`** — 換別的 agent 改那個 pattern 就好。`pgrep` 區分大小寫，所以不會誤傷首字大寫的 Claude Desktop（實測過）。
-- **bash 5.x 沒測** — 測試機只有 `/bin/bash` 3.2.57。
+- **Thermal decisions are made on a single sample, with no sustained check** — one 100 ms reading of `Trapping` triggers sleep, so in theory a momentary spike could cut a long task short. Hasn't happened in practice, but it's a known weak spot.
+- **One stray `Terminated: 15` line on exit** — the job-control notice from killing the background sudo-keepalive job. Harmless. Fixing it means touching the keepalive loop, which is load-bearing (lose the credential and sleep prevention fails entirely), so it stays.
+- **Piping or `$(...)`-capturing the output can hang for up to 60s** — an orphaned `sleep` still holds the stdout write end. Running it directly in a terminal is unaffected; to save a log use `> file` (redirection doesn't block).
+- **The demotion target is hardcoded to `pgrep -f "claude"`** — change that pattern for a different agent. `pgrep` is case-sensitive, so it won't catch the capital-C Claude Desktop app (verified).
+- **bash 5.x untested** — the test machine only has `/bin/bash` 3.2.57.
 
 ---
 
-## 想要更多功能
+## Want something more full-featured
 
-這支腳本的取向是「不裝東西、看得懂、改得動」。如果你要的是功能完整的成品，有更好的選擇：
+This script's angle is "install nothing, read it in five minutes, change it in one line." If you want a finished product, there are better options.
 
-**[keepresso](https://github.com/gyorgysh/keepresso)**（Swift/SwiftUI menu bar app，GPL-3.0）覆蓋這裡幾乎所有功能，而且多數做得更好——熱保護可以讀溫度 sensor、有 sustained 判定、會先提升風扇再暫停 session、自動恢復；還有針對 Claude Code / Cursor / Codex 的 agent hooks。它沒有的是 E-Core 流放。
+**[keepresso](https://github.com/gyorgysh/keepresso)** (Swift/SwiftUI menu bar app, GPL-3.0) covers nearly everything here and does most of it better — thermal protection can read temperature sensors, has a **sustained** threshold check, boosts fans before pausing the session, and recovers automatically; it also has agent hooks for Claude Code / Cursor / Codex. What it doesn't have is E-core relegation.
 
-**[Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704)**（App Store，免費）防休眠與電量／CPU 使用率的 Trigger 都有，但**沒有**熱保護。
+**[Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704)** (App Store, free) has sleep prevention plus battery and CPU-utilization triggers, but **no** thermal protection.
 
-| | 這支腳本 | keepresso | Amphetamine |
+| | This script | keepresso | Amphetamine |
 |---|---|---|---|
-| 闔蓋防休眠（純電池、無外接） | ✓ | ✓ | ✓ |
-| 電量／時間 | ✓ | ✓ 更豐富 | ✓ |
-| 熱保護 | ✓ | ✓ 更完整 | ✗ |
-| **E-Core 流放** | ✓ | ✗ | ✗ |
-| **需要安裝什麼** | **無** | DMG / Homebrew cask ＋ 選配 admin helper | App Store；Apple Silicon 闔蓋模式需寫入 `/private/etc/sudoers.d/` |
+| Lid-closed, battery only, no external display | ✓ | ✓ | ✓ |
+| Battery / time limits | ✓ | ✓ richer | ✓ |
+| Thermal protection | ✓ | ✓ more complete | ✗ |
+| **E-core relegation** | ✓ | ✗ | ✗ |
+| **What you have to install** | **nothing** | DMG / Homebrew cask + optional admin helper | App Store; on Apple Silicon, closed-display mode needs a file written to `/private/etc/sudoers.d/` |
 
-最後一列是選這支腳本的主要理由：**受管的企業筆電上，裝第三方 app、Homebrew cask、或往 `/private/etc/sudoers.d/` 寫檔案，這三件都可能過不了審核；一支看得懂的 bash 腳本通常可以。**
+That last row is the main reason to pick this one: **on a managed corporate laptop, installing a third-party app, a Homebrew cask, or writing into `/private/etc/sudoers.d/` can all fail review. A bash script you can read usually doesn't.**
 
 ---
 
-## 想再深入
+## Going deeper
 
-上面是全部你需要知道的用法。如果你要動手改、或想知道做這支腳本時撞到什麼，都在 **[NOTES.md](NOTES.md)**：
+Everything you need to *use* it is above. If you want to modify it, or want to know what went wrong while building it, that's all in **[NOTES.md](NOTES.md)**:
 
-- **踩到的坑** — `taskpolicy -c background -p` 回報 exit 0 卻完全沒作用、`nice` 不是 QoS 指標、「還原」為什麼不能重跑 `pgrep`、E-Core 流放的實測數據、為什麼不該把所有行程都踢去 E-Core（62% 本來就在那）、哪些行程碰了會出事、`pmset -g therm` 在 Apple Silicon 平時是空的、背景行程的 `SIGINT` 會被忽略造成測試假陰性、黑名單與白名單的 fail-safe 取捨
-- **怎麼驗的** — 用 shim 隔離系統指令（全程沒真的改過測試機的電源設定）、有狀態的 shim 逼出狀態轉換分支、wrapper ＋ 白名單（非得對真實行程動手時的保護）、測過的十一個情境
-- **三條帶得走的原則**
-
+- **Pitfalls hit** — `taskpolicy -c background -p` returns exit 0 while doing nothing at all; `nice` is not a QoS indicator; why "restore" must not re-run `pgrep`; measured evidence that E-core relegation works; why you should *not* demote every process (62% are already there); which processes will bite you if you touch them; `pmset -g therm` is empty most of the time on Apple Silicon; background processes have `SIGINT` ignored, which produces false-negative tests; blacklist vs whitelist as a fail-safe trade-off
+- **How it was verified** — shims to isolate system commands (no real power settings were ever changed on the test machine), stateful shims to force state-transition branches, a wrapper + allowlist for when you must touch real processes, and the eleven scenarios covered
+- **Three principles worth taking away**

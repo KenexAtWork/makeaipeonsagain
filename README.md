@@ -282,3 +282,11 @@ Everything you need to run it sits above. **[NOTES.md](NOTES.md)** holds the res
 - **Pitfalls.** `taskpolicy -c background -p` returns exit 0 and changes nothing. `nice` tells you nothing about QoS. Why "restore" must not re-run `pgrep`. Measured evidence that E-core relegation works. Why demoting every process backfires, since 62% already sit there. Which processes bite back when you touch them. `pmset -g therm` sits empty on Apple Silicon most of the time. Background processes ignore `SIGINT`, which hands you a test that always passes. Blacklist against allowlist as a fail-safe choice.
 - **How I verified it.** Shims that isolate system commands, so no real power setting ever changed on the test machine. Stateful shims that force state-transition branches. A wrapper plus allowlist for the cases that need real processes. The eleven scenarios I covered.
 - **Four principles worth taking with you.**
+
+---
+
+## License
+
+MIT. Take it, change it, ship it. See [LICENSE](LICENSE).
+
+The grant covers what sits in this repository. It does not cover the sound files, which stay out of the repo and belong to whoever made them.

@@ -332,3 +332,5 @@ For every exit path I also confirmed three things: sleep prevention off, low pow
    The wrap-up sound plays synchronously, so `Ctrl + C` during those few seconds left sleep prevention on and processes stuck on E-cores, which breaks the promise the docs make. **Fixed.** `trap -` now sits after `restore_settings`. That works because the restore function is **idempotent**: rewriting the same value costs nothing, and the demoted list is already empty, so re-entering it partway through stays safe.
 
    The same independent review caught this one, the second P1 in a single round. Setting the trap at the top feels like handling the problem, and the other end of the script is where it bites.
+
+   One more layer went in later. An `EXIT` trap now calls the same restore function, so an unexpected exit partway through the script still puts the settings back, including the case where someone adds an `exit` line months from now. The idempotence guard makes the double call harmless. I took that belt from Bo-Wei Chen's `delay_sleep.sh`, and I verified it: inserting `exit 42` mid-script restores `disablesleep` and `lowpowermode`, where the earlier version restored neither.

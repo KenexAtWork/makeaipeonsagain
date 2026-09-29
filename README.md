@@ -285,6 +285,16 @@ Everything you need to run it sits above. **[NOTES.md](NOTES.md)** holds the res
 
 ---
 
+## Acknowledgements
+
+Three people shaped this more than the code shows:
+
+- **Bo-Wei Chen** ([BO-WEI-CHEN](https://github.com/BO-WEI-CHEN)) — MAPA's last-resort cleanup, an `EXIT` trap guarded against re-entry, came straight from his `delay_sleep.sh`. Without it, an unexpected exit partway through would leave sleep prevention switched on.
+- **Shih-Yong Wang** ([shihyongwang](https://github.com/shihyongwang)) — for framing the problem and confirming the pain point in the first place.
+- **Cliff Lu** ([clifflu](https://github.com/clifflu)) — the thermal guard and the timestamped logging both started as his suggestions while we worked out the `pmset` side of this.
+
+---
+
 ## License
 
 MIT. Take it, change it, ship it. See [LICENSE](LICENSE).

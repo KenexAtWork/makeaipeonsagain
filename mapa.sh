@@ -4,6 +4,11 @@
 # MAPA: Make AI Peons Again (溫控降頻與音效增強版)
 # 參數 1: 運作分鐘數（預設 60 分鐘；輸入 0 為無上限）
 # 參數 2: 電量保護閾值（預設 10%）
+#
+# 謝謝強者大大：
+#   Bo-Wei Chen    ｜delay_sleep.sh 的 trap EXIT 完整清理做法
+#   Shih-Yong Wang ｜題目發想與 painpoint 確認
+#   Cliff Lu       ｜Thermal 限制與時戳日誌的原始建議
 # ============================================================
 
 MINS="${1:-60}"
@@ -99,7 +104,7 @@ play_audio() {
 # ============================================================
 # Claude 行程排程切換（mapa 期間把 AI 苦工壓到 E-Core 省電降溫）
 #
-# 實測依據（2026-09-28, Apple M3 Pro, macOS 25.6）——以 ps 的 pri 欄位觀測：
+# 實測依據（2026-09-28, Apple M3 Pro, macOS 26.7）——以 ps 的 pri 欄位觀測：
 #   taskpolicy -b -p <pid>              有效：pri 31 → 4
 #   taskpolicy -B -p <pid>              有效：pri 4 → 31（完整還原）
 #   taskpolicy -c background -p <pid>   ✗ 無效：pri 不變，但 exit code 仍為 0（靜默失敗）
@@ -152,14 +157,32 @@ restore_claude_from_ecore() {
 }
 
 # 系統電源設定還原函式
+# 防重入旗標：EXIT trap 與正常路徑／中斷路徑可能各呼叫一次，只讓它實際跑一次。
+# （做法借自 Bo-Wei Chen 的 delay_sleep.sh）
+RESTORED=0
 restore_settings() {
-  # 兩者都回填啟動時記錄的原值，不寫死預設值。
-  # 註：若使用者原本就是 disablesleep=1，還原後最後那道 `pmset sleepnow` 可能
-  #     不會真的讓機器睡——那符合他原本「不讓機器睡」的設定意圖，優先尊重。
-  sudo pmset -a disablesleep "$ORIG_DISABLE_SLEEP"
-  sudo pmset -a lowpowermode "$ORIG_LOW_POWER"
+  [ "$RESTORED" -eq 1 ] && return 0
+  local attempt ok
+  # 重試放在函式裡而不是各呼叫端，這樣正常收工、中斷、EXIT trap 三條路徑
+  # 都自動有同樣的保障。原本只在正常路徑重試，等於讓「最後一道保險」那條
+  # 反而只試一次——而它最需要重試，因為下面會殺掉 sudo keep-alive。
+  for attempt in 1 2; do
+    ok=1
+    # 兩者都回填啟動時記錄的原值，不寫死預設值。
+    # 註：若使用者原本就是 disablesleep=1，還原後最後那道 `pmset sleepnow` 可能
+    #     不會真的讓機器睡——那符合他原本「不讓機器睡」的設定意圖，優先尊重。
+    sudo pmset -a disablesleep "$ORIG_DISABLE_SLEEP" || ok=0
+    sudo pmset -a lowpowermode "$ORIG_LOW_POWER" || ok=0
+    [ "$ok" -eq 1 ] && break
+  done
   restore_claude_from_ecore
+  # keep-alive 要最後才殺：它撐著 sudo 憑證，先殺會讓上面的重試更沒機會成功。
   kill "$SUDO_KEEP_ALIVE_PID" 2>/dev/null
+  # 只有 pmset 真的成功才鎖上旗標。失敗就不鎖，讓後續路徑還能再試
+  # ——若在動作前就鎖，失敗時「最後一道保險」會被自己的防重入旗標關掉。
+  # 重試是安全的：DEMOTED_PIDS 已清空、pmset 重設同值無害、kill 對已結束的行程無作用。
+  [ "$ok" -eq 1 ] && RESTORED=1
+  return 0
 }
 
 # 處理 Ctrl + C 手動中斷
@@ -171,6 +194,11 @@ on_interrupt() {
   exit 130
 }
 trap on_interrupt INT TERM
+# EXIT trap 是最後一道保險：涵蓋「以其他方式離開」的情況（例如日後有人在
+# 腳本中間加一行 exit，或某個未預期的錯誤讓 shell 退出）。目前的結構沒有
+# 這種路徑，但靠的是「剛好沒有」而不是機制保證，所以補上這道。
+# restore_settings 有防重入旗標，重複呼叫不會重跑。
+trap restore_settings EXIT
 
 # 1. 啟動關閉休眠，並播放起始音效
 sudo pmset -a disablesleep 1
@@ -263,5 +291,5 @@ restore_settings
 # 行程留在 E-Core，正好違反「任何退出路徑都會還原」這個保證。
 # restore_settings 本身是冪等的（pmset 重設同值無害、DEMOTED_PIDS 已清空），
 # 所以萬一在它執行途中被中斷而重入 on_interrupt，也不會出問題。
-trap - INT TERM
+trap - INT TERM EXIT
 sudo pmset sleepnow

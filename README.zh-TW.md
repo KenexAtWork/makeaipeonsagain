@@ -285,6 +285,16 @@ taskpolicy -B -p <pid>    # 還原
 
 ---
 
+## 致謝
+
+謝謝三位強者大大，他們的貢獻比程式碼上看得到的更多：
+
+- **Bo-Wei Chen**（[BO-WEI-CHEN](https://github.com/BO-WEI-CHEN)）｜MAPA 那道「任何退出路徑都還原」的最後保險（`trap ... EXIT` 加防重入旗標）借自他的 `delay_sleep.sh`。少了它，腳本中途若以其他方式退出，防休眠會留著開。
+- **Shih-Yong Wang**（[shihyongwang](https://github.com/shihyongwang)）｜題目發想與 painpoint 確認。
+- **Cliff Lu**（[clifflu](https://github.com/clifflu)）｜溫度保護與時戳日誌這兩件事，都出自他在 `pmset` 設計討論裡的建議。
+
+---
+
 ## 授權
 
 MIT。拿去用、改、散佈都可以，見 [LICENSE](LICENSE)。

@@ -2,6 +2,10 @@
 
 # ============================================================
 # MAPA: Make AI Peons Again (溫控降頻與音效增強版)
+#
+# 作者：Kenex Huang（github.com/KenexAtWork）
+# 授權：MIT — Copyright (c) 2026 Kenex Huang（全文見 LICENSE）
+#
 # 參數 1: 運作分鐘數（預設 60 分鐘；輸入 0 為無上限）
 # 參數 2: 電量保護閾值（預設 10%）
 #

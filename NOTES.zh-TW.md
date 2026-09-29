@@ -4,7 +4,7 @@
 
 **大部分內容跟你最後用哪個工具無關**——`exit 0` 不等於生效、fail-safe 的方向、怎麼在不弄壞自己機器的前提下驗證一支會改系統設定的腳本，這些是通用的。
 
-實測環境：Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57。
+實測環境：Apple M3 Pro / macOS 26.7 (build 25G229) / `/bin/bash` 3.2.57。
 
 > 🇬🇧 English → **[NOTES.md](NOTES.md)**
 

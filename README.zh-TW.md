@@ -8,7 +8,7 @@
 ./mapa.sh 180 15    # 跑 3 小時，電量降到 15% 就收工休眠
 ```
 
-實測環境：Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57。
+實測環境：Apple M3 Pro / macOS 26.7 (build 25G229) / `/bin/bash` 3.2.57。
 
 > 🇬🇧 English → **[README.md](README.md)**
 > 想直接看技術細節（踩到的坑、怎麼驗的）→ **[NOTES.zh-TW.md](NOTES.zh-TW.md)**

@@ -6,7 +6,7 @@ Technical appendix to [MAPA](README.md), for anyone who pokes at macOS power man
 
 This is a toy, not a product, and it will earn nobody any money. If one of these notes saves you a few hours chasing a command that reports success while doing nothing, it paid for itself.
 
-Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
+Tested on: Apple M3 Pro / macOS 26.7 (build 25G229) / `/bin/bash` 3.2.57.
 
 > 🇹🇼 中文版 → **[NOTES.zh-TW.md](NOTES.zh-TW.md)**
 

@@ -8,7 +8,7 @@ One bash script, 250 lines, **zero dependencies, zero install**. **This is a toy
 ./mapa.sh 180 15    # run 3 hours, wrap up when battery drops to 15%
 ```
 
-Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
+Tested on: Apple M3 Pro / macOS 26.7 (build 25G229) / `/bin/bash` 3.2.57.
 
 > 🇹🇼 中文版 → **[README.zh-TW.md](README.zh-TW.md)**
 > Pitfalls and how I verified it → **[NOTES.md](NOTES.md)**

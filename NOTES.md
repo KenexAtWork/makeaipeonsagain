@@ -1,10 +1,10 @@
-# MAPA — Pitfalls and How It Was Verified
+# MAPA — Pitfalls and How I Verified It
 
-Technical appendix to [MAPA](README.md), for anyone who pokes at macOS power management, QoS, or wants to verify this kind of thing without wrecking their own machine.
+Technical appendix to [MAPA](README.md), for anyone who pokes at macOS power management or QoS, or who wants to test that kind of thing without wrecking their own machine.
 
-**Most of what follows is independent of whichever tool you end up using** — `exit 0` doesn't mean it worked, which direction fail-safe should point, how to test a script that modifies system settings without actually modifying them. That part is general.
+**Most of this holds no matter which tool you pick.** `exit 0` does not mean a command worked. Fail-safe points in different directions depending on the operation. You can test a script that modifies system settings without modifying any.
 
-This is a toy, not a product. It won't make anyone money. But if one of these notes saves you a few hours of chasing a command that silently does nothing, it did its job.
+This is a toy, not a product, and it will earn nobody any money. If one of these notes saves you a few hours chasing a command that reports success while doing nothing, it paid for itself.
 
 Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
 
@@ -14,46 +14,46 @@ Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
 
 ## 🔴 Pitfalls
 
-This is the most useful section, and most of it applies regardless of which tool you use.
+Most of this section applies regardless of the tool you end up using.
 
-### `taskpolicy -c background -p <pid>` is a no-op — exit 0, zero effect
+### `taskpolicy -c background -p <pid>` does nothing, and reports success
 
-The E-core demotion recipe you'll find online is `taskpolicy -c background -p <pid>`. Measured (observed via `ps -o pri`):
+The E-core demotion recipe you find online reads `taskpolicy -c background -p <pid>`. I measured it with `ps -o pri`:
 
 | Command | `pri` change | exit code | |
 |---|---|---|---|
 | `taskpolicy -b -p` | **31 → 4** | 0 | ✓ works |
-| `taskpolicy -B -p` | **4 → 31** | 0 | ✓ restores fully |
-| `taskpolicy -c background -p` | **31 → 31** | **0** | ✗ **no effect, reports success** |
-| `taskpolicy -c default -p` | **4 → 4** | non-zero | ✗ errors out, and doesn't restore |
+| `taskpolicy -B -p` | **4 → 31** | 0 | ✓ full restore |
+| `taskpolicy -c background -p` | **31 → 31** | **0** | ✗ **no effect, claims success** |
+| `taskpolicy -c default -p` | **4 → 4** | non-zero | ✗ errors, and restores nothing |
 
-The usage string explains why — `-c` belongs to the "launch a new program" form; acting on an existing pid only accepts `-b`/`-B`:
+The usage string explains it. `-c` belongs to the form that launches a new program. Acting on a pid takes only `-b` or `-B`:
 
 ```
 Usage: taskpolicy [-x|-X] ... [-c <clamp>] [-b] ... <program> [<pargs> [...]]
        taskpolicy [-b|-B] [-t <tier>] [-l <tier>] -p pid
 ```
 
-The error from `-c default -p` is `Could not parse 'default' as a QoS clamp` — **and every version of that recipe floating around pipes stderr to `/dev/null`, swallowing the only clue you'd get.**
+`-c default -p` prints `Could not parse 'default' as a QoS clamp`. **Every copy of that recipe I found pipes stderr to `/dev/null`, which throws away your only clue.**
 
-The worst combination is someone fixing the demotion to `-b` but leaving the restore line alone: processes then stay stuck at `pri 4` **until you restart them**.
+The worst version of this bug arrives when someone fixes the demotion to `-b` and leaves the restore line alone. Processes then sit at `pri 4` until you restart them.
 
-> **Takeaway: `exit 0` does not mean it took effect.** Any "configure something" command should be verified by an observable state change, not by its exit code. This applies just as much to IaC and CLI automation.
+> **Take this one with you: `exit 0` does not mean it worked.** Verify configuration commands by an observable state change, never by exit code. IaC and CLI automation break the same way.
 
-### `nice` is not a QoS indicator — `pri` is
+### `nice` tells you nothing about QoS. `pri` does.
 
-`nice` stayed at 5 before and after `taskpolicy -b`, completely unchanged. Using `nice` as your indicator will tell you the command didn't work.
+`nice` read 5 before and after `taskpolicy -b`. Use `nice` as your indicator and you conclude the command failed.
 
-(`taskinfo` shows much more but **requires root**, which is why there's no way to read a process's original QoS as a normal user — and that constrains the next item.)
+`taskinfo` shows far more, and it **needs root**. So a normal user cannot read a process's original QoS, which constrains the next item.
 
-### "Restore" must not re-run `pgrep`
+### Restore must not re-run `pgrep`
 
-The recipes out there re-run `pgrep` at restore time and set everything they find back to default. Two problems: processes started in the meantime get touched; and **anything that was already background gets *promoted*** — that isn't a restore.
+The recipes out there re-run `pgrep` at restore time and set everything they find back to default. That breaks twice: it touches processes that started in the meantime, and it **promotes anything that already ran as background**. Promotion is not restoration.
 
-Since the original QoS isn't readable, the way around it is to **only restore the pids you personally demoted**.
+Since you cannot read the original QoS, restore only the pids you demoted yourself.
 
 ```bash
-# simplified for illustration (the real one also counts them for the log line)
+# simplified for illustration; the real one also counts them for the log line
 DEMOTED_PIDS=""
 
 demote() {
@@ -72,99 +72,99 @@ restore() {
 }
 ```
 
-### Does E-core relegation actually work — measured
+### Does E-core relegation work? Here are the numbers.
 
-Target process was a `yes` saturating one core, compared before/after with `powermetrics --samplers cpu_power`:
+I ran a `yes` saturating one core as the target, then compared before and after with `powermetrics --samplers cpu_power`:
 
 | | before | after |
 |---|---|---|
 | **E-Cluster idle residency** | **23.58%** | **0.00%** |
 | E-Cluster frequency distribution | 744 MHz at 32% | **744 MHz at 83%** |
 | E-Cluster average frequency | 1495 MHz | 877 MHz |
-| P-Cluster residency | 100% / idle 0% | 100% / idle 0% (unchanged) |
+| P-Cluster residency | 100% / idle 0% | 100% / idle 0% (no change) |
 
-**`E-Cluster idle residency 23.58% → 0.00%`** is the decisive bit: the E-cluster's idle time was consumed, and simultaneously its frequency distribution collapsed onto **the lowest step, 744 MHz, at 83%**. Those two happening together have one explanation — a CPU-bound task moved into the E-cluster and the system is running it at the lowest clock.
+**`E-Cluster idle residency 23.58% → 0.00%`** settles it. The E-cluster ran out of idle time, and at the same moment its frequency distribution collapsed onto the lowest step, 744 MHz, at 83%. One explanation fits both: a CPU-bound task moved into the E-cluster, and the system runs it at the bottom clock.
 
-If `-b` only changed priority without affecting core affinity, the target would have stayed on a P-core (just scheduled later) and E-cluster idle wouldn't have gone to zero.
+Had `-b` changed priority without touching core affinity, the target would have stayed on a P-core with a worse place in the queue, and E-cluster idle would not have hit zero.
 
-E-core 744 MHz vs P-core 3699 MHz is roughly a **5× frequency difference**, and E-cores are more efficient per clock on top of that, so the power difference is larger still. (Exact wattage not measured.)
+E-core 744 MHz against P-core 3699 MHz gives you roughly a 5× frequency gap, and E-cores draw less per clock on top of that. I did not measure wattage.
 
-> Honest caveat: the P-Cluster side shows no change, because the test machine had other load keeping it busy — the slot vacated by the target was immediately refilled. So "it left the P-cores" is **inferred** from the E side, not directly observed.
+> One caveat I owe you: the P-Cluster side shows no change, because other load on the test machine kept it busy and refilled the slot the target vacated. So I infer "it left the P-cores" from the E side rather than observing it.
 
-### Why *not* demote every process
+### Why demoting every process backfires
 
-The obvious next thought is: if demotion works, why not demote everything? Measuring the `pri` distribution of all **571 processes** owned by the user on the test machine answers it:
+The next thought comes fast: if demotion works, why not demote everything? I measured the `pri` distribution across all **571 processes** the user owned:
 
 | `pri` | count | |
 |---|---|---|
-| **4** | **356** | same value `taskpolicy -b` produces ⇒ strongly suggests **already background QoS** |
+| **4** | **356** | the value `taskpolicy -b` produces, so these **already run as background** |
 | 20 | 26 | |
-| 31 | 58 | ordinary foreground processes (what demotion targets look like) |
-| 37–61 | ~130 | UI / higher priority |
-| 97 | 4 | realtime (audio etc. — don't touch) |
+| 31 | 58 | ordinary foreground processes, what demotion aims at |
+| 37–61 | ~130 | UI and higher priority |
+| 97 | 4 | realtime, audio and friends. Leave them alone. |
 
-**62% of processes are already background.** macOS long ago put most background daemons on E-cores (`accountsd`, `adprivacyd`, `AMPLibraryAgent` are all `pri=4`).
+**62% of those processes already sit in background QoS.** macOS put most background daemons on E-cores long ago: `accountsd`, `adprivacyd`, `AMPLibraryAgent` all read `pri=4`.
 
-So demoting indiscriminately has two problems, and the second one is fatal:
+Demoting indiscriminately breaks twice, and the second one hurts:
 
-1. **Zero benefit for that 62%** — they're already there
-2. 🔴 **Restore makes things worse** — because the original QoS isn't readable (`taskinfo` needs root), restoring would **promote** those 356 already-background processes to non-background. **You set out to save power and instead released 356 daemons from the E-cores. Worse than doing nothing.**
+1. **You gain nothing on that 62%.** They already sit there.
+2. 🔴 **Restore makes it worse.** You cannot read the original QoS, since `taskinfo` needs root, so restore would **promote** all 356 already-background processes. You set out to save power and instead released 356 daemons from the E-cores.
 
-⇒ So: use an allowlist. But **don't guess what belongs on it — measure once.**
+So use an allowlist. **And measure before you fill it, because intuition gets this wrong.**
 
-### Who's actually burning CPU all the time
+### Who burns CPU around the clock
 
-`ps`'s `%CPU` is an average since process start; for instantaneous values use `top` and take the second sample:
+`ps` gives you an average since process start. For instantaneous numbers, run `top` and take the second sample:
 
 ```bash
 top -l 2 -n 25 -o cpu -stats pid,cpu,command | awk '/^PID/{p++} p==2'
 ```
 
-Measured on a working machine with a browser, chat apps and a few agent CLIs open — the result may not match intuition:
+I measured a working machine with a browser, chat apps, and a few agent CLIs open:
 
 | Type | instantaneous %CPU | `pri` | Allowlist? |
 |---|---|---|---|
-| agent CLI (Claude Code etc.) | medium–high | 20–31 | ✓ the primary target |
-| **browser renderer / helper** | **can exceed 80%** | **47–55** | ✓ **often the biggest consumer** |
-| chat app helpers (Slack etc.) | single digits–medium | 46 | ✓ worth adding |
+| agent CLI (Claude Code and friends) | medium to high | 20–31 | ✓ the main target |
+| **browser renderer or helper** | **over 80%** | **47–55** | ✓ **often the biggest one** |
+| chat app helpers (Slack and friends) | single digits to medium | 46 | ✓ worth adding |
 | terminal app | single digits | 46 | △ adding it makes Ctrl+C feel sluggish |
-| **EDR / DLP / MDM agents** | **can exceed 50%** | 20–37 | 🔴 **do not touch** (see below) |
-| `WindowServer`, `kernel_task` | medium–high | 79 / — | 🔴 system-critical, mostly root, can't and shouldn't |
-| assorted `*d` daemons | ~0 | 4 | ✗ already background |
+| **EDR / DLP / MDM agents** | **over 50%** | 20–37 | 🔴 **leave alone**, see below |
+| `WindowServer`, `kernel_task` | medium to high | 79 / — | 🔴 system-critical, mostly root, you cannot and should not |
+| assorted `*d` daemons | near 0 | 4 | ✗ already background |
 
-**The browser is often heavier than the agent itself.** Background tabs, extensions and service workers keep running after you close the lid, and their `pri` is 47–55 — **higher than an ordinary foreground process's 31** — so they have the most room to be demoted. Browsers throttle some background tabs themselves (some helpers are already at `pri=4`), but not the heavy ones.
+**Your browser often outweighs the agent.** Background tabs, extensions, and service workers keep running after the lid goes down, and their `pri` reads 47–55, above an ordinary foreground process at 31, which leaves them the most room to fall. Browsers throttle some background tabs on their own, and a few helpers already read `pri=4`, but the heavy ones do not.
 
-### 🔴 Corporate management software: do not touch
+### 🔴 Corporate management software: leave it alone
 
-A managed work laptop typically runs EDR, DLP and MDM agents, and **they're frequently near the top of the CPU list**. Keep them off your allowlist:
+A managed work laptop runs EDR, DLP, and MDM agents, and **they show up near the top of the CPU list**. Keep them off your allowlist:
 
-- Most run as root, so demotion silently fails anyway
-- The few running as your user may **trigger a compliance alert**, or be interpreted as interfering with a security agent
-- This class of software usually has self-protection and watchdogs — your change may be reverted, or logged as an event
+- Most run as root, so demotion fails without telling you
+- The few running as your user may **trip a compliance alert**, or read as interference with a security agent
+- This software carries self-protection and watchdogs. Your change may get reverted, or logged as an event
 
-The rule of thumb is simple: **if you didn't install it and don't recognise the name, leave it alone.**
+The rule is short: **if you did not install it and do not recognise the name, leave it alone.**
 
-### How to change the allowlist
+### Changing the allowlist
 
-It's one hardcoded line, inside `demote_claude_to_ecore()`:
+One hardcoded line does it, inside `demote_claude_to_ecore()`:
 
 ```bash
 pids=$(pgrep -f "claude")
 ```
 
-Change the pattern to add targets. `pgrep -f` matches against the **full command line** and is **case-sensitive**:
+Change the pattern to add targets. `pgrep -f` matches the **full command line** and respects case:
 
 ```bash
 pids=$(pgrep -f "claude|Google Chrome|Slack|ffmpeg")    # separate targets with |
 ```
 
-After changing it, **always check what it actually matches** before letting the script act on them:
+After you change it, **check what it matches** before the script acts on anything:
 
 ```bash
-pgrep -fl "claude|Google Chrome|Slack|ffmpeg"    # -l also prints the command line
+pgrep -fl "claude|Google Chrome|Slack|ffmpeg"    # -l prints the command line too
 ```
 
-Don't skip that step. Run it once and you'll see why — with `iTerm` as the pattern, the first hit isn't the terminal app at all:
+Run that once with `iTerm` as a pattern and you see why the step matters. The first hit is not the terminal app:
 
 ```
 $ pgrep -fl 'claude|iTerm'
@@ -172,13 +172,13 @@ $ pgrep -fl 'claude|iTerm'
 2499 claude --resume 97a0d3e3-...
 ```
 
-`-f` matches the whole command line, so anything with that string anywhere in its path gets caught — XPC services under an app bundle, helpers, even your own test scripts. **One character wider in the pattern, one ring wider in the blast radius. Look before you run.**
+`-f` matches the whole command line, so anything carrying that string in its path gets caught: XPC services inside an app bundle, helpers, even your own test scripts. Widen the pattern by one character and you widen what you hit. Look first.
 
-(`pgrep` patterns are extended regular expressions, so `|` works; and it's case-sensitive, so `claude` won't catch the capital-C Claude Desktop app. Both verified.)
+(`pgrep` patterns are extended regular expressions, so `|` works. It respects case, so `claude` skips the capital-C Claude Desktop app. I verified both.)
 
-### `pmset -g therm` is empty most of the time on Apple Silicon
+### `pmset -g therm` sits empty on Apple Silicon most of the time
 
-The script originally used `CPU_Speed_Limit` as a second signal. On an M3 Pro the field simply isn't there under normal conditions:
+The script first used `CPU_Speed_Limit` as a second signal. On an M3 Pro the field does not exist under normal conditions:
 
 ```
 $ pmset -g therm
@@ -187,43 +187,43 @@ Note: No performance warning level has been recorded
 Note: No CPU power status has been recorded
 ```
 
-So that signal doesn't hold, and protection rests entirely on thermal pressure level. Worse, the log line prints `CPU 限速: ${CPU_LIMIT:-100}%`, so **an unreadable value displays as 100% — which looks like "not throttled" when it actually means "no idea."**
+So that signal fails, and protection rests on thermal pressure level alone. The log line reads `CPU 限速: ${CPU_LIMIT:-100}%`, so **an unreadable value prints as 100%, which looks like "not throttled" when it means "no idea."**
 
-Presumably the field only gets populated from `Heavy` upward (the message says "has been **recorded**", i.e. not yet recorded rather than unsupported). **Not proven** — there's no way to force a machine to `Heavy` on demand.
+The field probably fills in from `Heavy` upward, since the message says "has been **recorded**" rather than "unsupported." I could not prove it. No one can force a machine to `Heavy` on demand.
 
-### Background processes have `SIGINT` ignored (a false-negative test trap)
+### Background processes ignore `SIGINT`, which hands you a test that always passes
 
-POSIX behaviour: a process started with `&` from a non-interactive shell has `SIGINT` set to `SIG_IGN`, and a `trap` inside the script **cannot override it**.
+POSIX says a process started with `&` from a non-interactive shell gets `SIGINT` set to `SIG_IGN`, and a `trap` inside the script **cannot take it back**.
 
 | Signal sent | Result |
 |---|---|
-| background start + `kill -INT` | **trap never fires**, process still alive 14 seconds later |
-| background start + `kill -TERM` | trap fires, `exit 130` ✓ |
+| background start, `kill -INT` | **trap never fires.** Process still alive 14 seconds later |
+| background start, `kill -TERM` | trap fires, `exit 130` ✓ |
 
-⇒ **Testing a background script's interrupt path with `kill -INT` gives you a test that always passes.** This project had exactly one such bogus "interrupt path verified" result. Use `SIGTERM` against the same handler (`trap ... INT TERM`) to actually exercise it.
+So testing a background script's interrupt path with `kill -INT` gives you a test that passes forever. This project carried exactly one bogus "interrupt path verified" result from that. Send `SIGTERM` against the same handler (`trap ... INT TERM`) and you exercise the real path.
 
-As for the delay: when you signal a single process, bash receives it while waiting on a foreground child (`sleep 10`) and **won't run the handler until that child exits**, so the worst-case delay is one sleep period. A real `Ctrl + C` isn't subject to this — the terminal sends `SIGINT` to the **entire foreground process group**, killing the `sleep` too, so bash returns immediately ⇒ instant exit.
+On the delay: signal one process and bash receives it while waiting on a foreground child (`sleep 10`), then **holds the handler until that child exits**, so worst case costs you one sleep period. A real `Ctrl + C` skips this, because the terminal signals the **entire foreground process group** and kills the `sleep` too, so bash returns and exits at once.
 
-### Blacklist or allowlist — fail-safe direction depends on whether the operation is one-way
+### Blacklist or allowlist depends on whether the operation runs one way
 
-The thermal check enumerates the dangerous levels (a blacklist). Switching to an allowlist was considered ("only `Nominal`/`Moderate` are safe, everything else is dangerous"), which would make any future new level fail safe automatically. **Rejected**, because the throttling here is bidirectional:
+The thermal check lists the dangerous levels, a blacklist. I considered an allowlist instead, where only `Nominal` and `Moderate` count as safe and everything else counts as dangerous, which would make any future level fail safe. **I rejected it**, because throttling here runs both ways:
 
-- entry condition: not `Nominal`/`Moderate`
-- exit condition: `Nominal`/`Moderate`
+- enters on: not `Nominal` or `Moderate`
+- exits on: `Nominal` or `Moderate`
 
-Under an allowlist an unknown level **gets in but can't get out** — it would stick in low power mode forever.
+Under an allowlist an unknown level **gets in and never gets out**. It would stick in low power mode forever.
 
-The cost is that a blacklist silently misses anything you forgot to list — and that's not hypothetical: **the original script was missing `Sleeping`** (mentioned in a comment, absent from the condition), and that's precisely the level meaning "about to cook the chip." Hence the maintenance note left in the code.
+A blacklist costs you anything you forgot to list, and that cost already landed once: **the original script omitted `Sleeping`**, which a comment mentioned and the condition did not, and that level means the chip is about to cook. Hence the maintenance note now sitting in the code.
 
 ---
 
-## How it was verified
+## How I verified it
 
-The thing under test modifies **power settings** and touches **processes you're actively working in**, so verification has to be fully isolated. The method may be more reusable than the script itself.
+The thing under test changes **power settings** and touches **processes you work in**, so verification has to isolate completely. The method may outlast the script.
 
-### Shims to isolate system commands
+### Shims that isolate system commands
 
-Prepend a directory of fake commands to `PATH`, replacing `sudo` / `pmset` / `powermetrics` / `afplay`. **At no point were the test machine's real power settings changed:**
+Prepend a directory of fake commands to `PATH` and replace `sudo`, `pmset`, `powermetrics`, `afplay`. **No real power setting on the test machine ever changed:**
 
 ```bash
 SHIM=$(mktemp -d)
@@ -239,11 +239,11 @@ chmod +x "$SHIM"/*
 PATH="$SHIM:$PATH" bash mapa.sh 0 10
 ```
 
-The shim echoes intercepted calls to stderr, which turns it into **positive evidence that `restore_settings` really ran**.
+The shim echoes intercepted calls to stderr, which turns it into positive evidence that `restore_settings` ran.
 
-### Stateful shims to force state-transition branches
+### Stateful shims that force state-transition branches
 
-To test "throttled, then cooled down, then un-throttled", the shim has to change its answer partway through. A counter file does it:
+Testing "throttled, cooled, un-throttled" needs the shim to change its answer partway. A counter file handles it:
 
 ```bash
 cat > "$SHIM/powermetrics" <<EOF
@@ -254,16 +254,16 @@ else                     echo "Current pressure level: Nominal"; fi
 EOF
 ```
 
-The resulting timeline (thermal is checked every 30 seconds):
+The timeline came out like this, with thermal checked every 30 seconds:
 
 ```
 23:31:58  Heavy    → enable low power mode  → [shim pmset] -a lowpowermode 1
 23:32:28  Nominal  → disable it again       → [shim pmset] -a lowpowermode 0
 ```
 
-### Wrapper + allowlist, for when you must touch real processes
+### A wrapper plus allowlist, for the cases that need real processes
 
-E-core demotion needs the **real** `taskpolicy` to produce an observable QoS change, but the test machine had working agent processes that must not be touched. The answer is a wrapper: log the call, **forward it only for allowlisted target pids**, reject everything else.
+E-core demotion needs the **real** `taskpolicy` to produce an observable QoS change, and the test machine ran working agent processes I could not touch. A wrapper solves it: log the call, forward it only for allowlisted target pids, reject the rest.
 
 ```bash
 if grep -q "^${PID}$" "$TARGET_PIDS"; then
@@ -273,37 +273,37 @@ else
 fi
 ```
 
-Belt and braces: `pgrep` was also shimmed to return only the decoy pids, so even a broken allowlist couldn't reach a real process.
+Belt and braces: I shimmed `pgrep` as well, so it returned only decoy pids. A broken allowlist still could not reach a real process.
 
 ### Scenarios covered
 
 | Scenario | Result |
 |---|---|
 | Battery ≤ floor | ✓ |
-| Time limit (real 60-second wait): projected end time, `執行 1 分鐘` arithmetic | ✓ |
-| `Sleeping` cut-off (**missed before the fix**) | ✓ |
+| Time limit, waiting the real 60 seconds: projected end time, `執行 1 分鐘` arithmetic | ✓ |
+| `Sleeping` cut-off, **which the pre-fix script missed** | ✓ |
 | `Trapping` cut-off | ✓ |
-| `Heavy` throttles only, does **not** cut off | ✓ |
-| `Heavy → Nominal`: throttle then recover, un-throttle (writes back original, not a hardcoded default) | ✓ |
+| `Heavy` throttles only, never cuts off | ✓ |
+| `Heavy → Nominal`: throttle, recover, un-throttle, writing back the original rather than a default | ✓ |
 | `Nominal` triggers nothing | ✓ |
 | `SIGTERM` through `on_interrupt`: `exit 130`, all state restored | ✓ |
-| No target processes present: demotion skips quietly | ✓ |
+| No target processes present: demotion skips without complaint | ✓ |
 | Non-numeric arguments rejected | ✓ |
 | Timestamps across zones: `UTC+8` / `UTC+5:45` / `UTC-4` / `UTC-9:30` | ✓ |
 
-Every exit path was additionally confirmed to: disable sleep prevention, write low power mode back to its original value, and restore process QoS.
+For every exit path I also confirmed three things: sleep prevention off, low power mode back to its original value, process QoS restored.
 
 ---
 
-## Principles worth taking away
+## Four principles worth taking with you
 
-1. **`exit 0` does not mean it took effect.** Configuration commands need verification by observable state change. `taskpolicy -c background -p` reports success while doing nothing, and the circulating recipe pipes away the one clue with `2>/dev/null`.
+1. **`exit 0` does not mean it worked.** Verify configuration commands by an observable state change. `taskpolicy -c background -p` reports success and does nothing, and the recipe circulating online pipes the one clue into `/dev/null`.
 
-2. **Which way fail-safe points depends on whether the operation is one-way or bidirectional.** "Unknown means dangerous" is safer for one-way operations, but in an enter/exit mechanism it produces states you can get into and never out of. Before choosing, ask: what's the cost of not being able to get out?
+2. **Which way fail-safe points depends on whether the operation runs one way or both.** "Unknown means dangerous" keeps one-way operations safe. Put it in an enter-and-exit mechanism and you build states you get into and never leave. Ask what it costs to be stuck before you choose.
 
-3. **"Restore" means writing back the original value, not a hardcoded default.** The circulating QoS recipe hardcodes `default`, which is wrong. When the original isn't readable (e.g. `taskinfo` needs root), fall back to recording *what you changed* and restoring only that.
+3. **Restore means writing back the original value, not a hardcoded default.** The QoS recipe circulating online hardcodes `default`, and that is wrong. When you cannot read the original, because `taskinfo` needs root, fall back to recording what you changed and restoring only that.
 
-   **The best counter-example for this principle was this very script.** It got `lowpowermode` right (records `ORIG_LOW_POWER` at startup, writes it back), but one line above in the same function, `disablesleep` used to be hardcoded to `0`:
+   **The best counter-example for this principle was this script.** It handled `lowpowermode` right, recording `ORIG_LOW_POWER` at startup and writing it back. One line above, in the same function, `disablesleep` used to sit hardcoded at `0`:
 
    ```bash
    # BEFORE THE FIX — not what the script does today
@@ -312,23 +312,23 @@ Every exit path was additionally confirmed to: disable sleep prevention, write l
      sudo pmset -a lowpowermode "$ORIG_LOW_POWER"    # ← writes back original, right
    ```
 
-   A user who had `disablesleep=1` on purpose (say they never want the machine sleeping) would have had it silently switched off on exit. Same function, adjacent lines, two different standards.
+   Anyone who had turned `disablesleep=1` on for their own reasons, say they never want the machine sleeping, would have found it off after MAPA exited. Same function, adjacent lines, two standards.
 
-   **Fixed** — the script now records `ORIG_DISABLE_SLEEP` at startup and writes that back, exactly as it does for `lowpowermode`.
+   **Fixed.** The script now records `ORIG_DISABLE_SLEEP` at startup and writes that back, the same way it handles `lowpowermode`.
 
-   And *when* it was caught is the point: **it was found by the independent review that runs before commit, and it was found *after* this principle had already been written down in this file.** Knowing a principle is not the same as following it — which is exactly the value of a mechanical gate like "no commit without independent review": it doesn't depend on anyone remembering whether they violated their own rule.
+   When I caught it matters as much as what it was. **The independent review that runs before every commit found it, and it found it after I had already written this principle into this file.** You can know a rule and still break it in the next function, which is the argument for a mechanical gate like "no commit without independent review." The gate remembers what you forget.
 
-4. **The guarantee "every exit path restores state" has to cover the teardown phase itself.** Installing the `trap` at the top isn't enough — if teardown removes the `trap` early, every action still pending restoration sits in a dead zone.
+4. **The promise "every exit path restores state" has to cover the teardown itself.** Installing the `trap` at the top buys you less than it looks. Remove the `trap` early in teardown and every action still awaiting restoration sits unprotected.
 
-   This script used to do exactly that:
+   This script did that:
 
    ```bash
    # BEFORE THE FIX — not what the script does today
    trap - INT TERM                      # ← removed at the start of teardown
    play_audio "ready_to_work.mp3" true  # ← blocks for seconds, waiting on playback
-   restore_settings                     # ← interrupt during the above and this never runs
+   restore_settings                     # ← interrupt above and this never runs
    ```
 
-   The wrap-up sound is played synchronously, so a `Ctrl + C` during those few seconds left sleep prevention on and processes stuck on E-cores — violating the guarantee the docs themselves make. **Fixed** — `trap -` now sits **after** `restore_settings`. The prerequisite is that the restore function be **idempotent** (rewriting the same value is harmless, the demoted list is already cleared), so re-entering it partway through is safe.
+   The wrap-up sound plays synchronously, so `Ctrl + C` during those few seconds left sleep prevention on and processes stuck on E-cores, which breaks the promise the docs make. **Fixed.** `trap -` now sits after `restore_settings`. That works because the restore function is **idempotent**: rewriting the same value costs nothing, and the demoted list is already empty, so re-entering it partway through stays safe.
 
-   Also found by the independent review — the second P1 in the same round. **"I installed the trap at the top" creates a feeling of having handled it, and what gets missed is the other end.**
+   The same independent review caught this one, the second P1 in a single round. Setting the trap at the top feels like handling the problem, and the other end of the script is where it bites.

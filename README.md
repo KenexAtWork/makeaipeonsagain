@@ -1,8 +1,8 @@
 # MAPA — Make AI Peons Again
 
-**Hand a long task to an AI coding agent, shut the lid, walk out. It keeps working — and shuts itself down safely when battery, time, or heat hits your limit.**
+**Hand a long task to an AI coding agent, shut the lid, walk out. It keeps working, then shuts itself down when battery, time, or heat hits your limit.**
 
-One bash script, 250 lines, **zero dependencies, zero install**. **Not a product — a fun little toy**, and worth saying twice. It doesn't aim to be perfect; it aims to be simple, readable, and easy to change. Nobody's going to make money off it, but it might keep a laptop from cooking in a backpack, or save someone a few hours of chasing a command that silently does nothing.
+One bash script, 250 lines, **zero dependencies, zero install**. **This is a toy, not a product.** I'd rather it stay simple and readable than cover every case. Nobody will make money from it. It might keep your laptop from cooking in a backpack, or save you a few hours chasing a command that reports success while doing nothing.
 
 ```bash
 ./mapa.sh 180 15    # run 3 hours, wrap up when battery drops to 15%
@@ -11,7 +11,7 @@ One bash script, 250 lines, **zero dependencies, zero install**. **Not a product
 Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
 
 > 🇹🇼 中文版 → **[README.zh-TW.md](README.zh-TW.md)**
-> Want the technical details — pitfalls hit, how it was verified? → **[NOTES.md](NOTES.md)**
+> Pitfalls and how I verified it → **[NOTES.md](NOTES.md)**
 
 ---
 
@@ -23,11 +23,11 @@ Tested on: Apple M3 Pro / macOS 26.7 (Darwin 25.6) / `/bin/bash` 3.2.57.
 ./mapa.sh 0 20           # no time limit, run until battery hits 20%
 ```
 
-Both arguments are integers: **minutes** (`0` = no limit) and **battery floor in percent** (must be 0–100; anything higher is rejected).
+Both arguments take integers: minutes (`0` means no limit) and battery floor in percent. The floor must sit between 0 and 100; the script rejects anything higher.
 
-It asks for your sudo password once (`pmset` and `powermetrics` need it). After that, close the lid and go.
+It asks for your sudo password once, because `pmset` and `powermetrics` need it. Then close the lid and go.
 
-What it looks like while running:
+Here is a run in progress:
 
 ```
 [2026/09/28 23:31:57 UTC+8] >>> 防休眠已啟用！隨時可按 Ctrl + C 取消。
@@ -37,164 +37,164 @@ What it looks like while running:
 [2026/09/28 23:32:28 UTC+8] >>> 機身溫度已恢復正常，解除強制低耗電模式。
 ```
 
-> Log messages are in Traditional Chinese (the script was written that way and I kept it). Timestamps show the UTC offset, computed live from `date +%z` rather than hardcoded — half-hour zones like `UTC+5:45` and `UTC-3:30` are handled correctly.
+> Log messages come out in Traditional Chinese. The script arrived that way and I kept it. Timestamps carry the UTC offset, computed from `date +%z` at runtime instead of hardcoded, so half-hour zones like `UTC+5:45` and `UTC-3:30` come out right.
 
-`Ctrl + C` at any time — it restores every system setting it touched.
+Press `Ctrl + C` whenever you want. The script restores every system setting it touched.
 
-> A bit of fun baked in: it plays the WC3 orc peon's "Work work" on start, "Under attack" when it detects heat, and "Ready to work" when it wraps up.
-> **Sound files are not in this repo** (third-party copyrighted material) — bring your own; filenames are in [`audio/README.md`](audio/README.md). Missing files don't break anything, you just get one log line saying it skipped them.
+> One bit of fun: it plays the WC3 orc peon's "Work work" on start, "Under attack" when it sees heat, and "Ready to work" when it wraps up.
+> **The sound files are not in this repo**, since they belong to someone else. Bring your own; [`audio/README.md`](audio/README.md) lists the filenames. Missing files cost you nothing but one log line.
 
 ---
 
-## Before you leave: make the Mac auto-connect to your phone's hotspot
+## Before you leave: make the Mac find your phone's hotspot
 
-**With the lid shut, you can't click a Wi-Fi network.** And an agent that can't reach an API is an agent burning battery for nothing — the machine keeps drawing power while the task makes no progress. So make sure the Mac will connect on its own.
+**Once the lid is shut you cannot click a Wi-Fi network.** An agent that can reach no API burns battery and makes no progress. So set this up before you walk out.
 
-> The `networksetup` commands below were verified on macOS 26.7. **The phone-side and System Settings steps were not tested** — UI labels shift between versions.
+> I verified the `networksetup` commands below on macOS 26.7. I did not test the phone-side steps or the System Settings path, and Apple moves those labels between versions.
 
 ### iPhone
 
-Two paths. Set up **both**:
+Two paths. Set up both.
 
-**① Instant Hotspot** — the Mac connects without a password, and the iPhone doesn't even need its hotspot toggle flipped first (the Mac asks it over Bluetooth). Requirements:
+**① Instant Hotspot.** The Mac connects without a password, and you don't even have to flip the hotspot toggle on the iPhone first, because the Mac asks it over Bluetooth. You need:
 
-- Mac and iPhone signed into the **same Apple Account**
-- **Wi-Fi and Bluetooth on** on both
-- **Handoff** enabled (Mac: Settings → General → AirDrop & Handoff; iPhone: Settings → General → AirPlay & Continuity)
+- Both devices signed into the same Apple Account
+- Wi-Fi and Bluetooth on, both sides
+- Handoff enabled (Mac: Settings → General → AirDrop & Handoff; iPhone: Settings → General → AirPlay & Continuity)
 
-**② Fixed SSID + password** — more reliable, and it's the only option for Android. Makes the Mac treat the hotspot as an ordinary known network:
+**② Fixed SSID and password.** Fewer moving parts, and the only path Android gives you. The Mac treats your hotspot as an ordinary known network:
 
 - iPhone: Settings → Personal Hotspot → set a Wi-Fi password
-- The hotspot SSID is the device name, changeable at Settings → General → About → Name (**pick something without special characters** to save yourself quoting headaches)
-- Connect once from the Mac using the password → it lands in the preferred-networks list and will be joined automatically afterwards
+- The SSID is the device name. Change it at Settings → General → About → Name, and **pick something without special characters** so you skip the quoting headaches.
+- Connect once from the Mac with that password. The hotspot lands in the preferred-networks list and the Mac joins it on its own after that.
 
-This path doesn't depend on Apple Account, Bluetooth, or Handoff — three fewer things to fail.
+Path ② drops three dependencies: Apple Account, Bluetooth, Handoff.
 
 ### 🔑 The setting people miss: auto-join hotspots
 
-**Remembering the hotspot isn't enough.** macOS won't join a personal hotspot on its own by default (it's trying not to eat your cellular data). Turn it on:
+**Remembering the hotspot gets you nowhere on its own.** macOS leaves personal hotspots alone by default, to protect your cellular data. Turn it on:
 
-**System Settings → Wi-Fi → scroll down to "Ask to join hotspots" → set to "Automatically"**
+**System Settings → Wi-Fi → scroll to "Ask to join hotspots" → choose "Automatically"**
 
-| Option | Behaviour |
+| Option | What happens |
 |---|---|
-| Never | Ignores hotspots entirely |
-| Ask | Prompts you — **which means it won't connect while the lid is shut** |
-| **Automatically** | Joins an available hotspot when no known Wi-Fi is around ✓ |
+| Never | The Mac ignores hotspots |
+| Ask | The Mac prompts you, so it connects to nothing while the lid is shut |
+| **Automatically** | The Mac joins an available hotspot once no known Wi-Fi is around ✓ |
 
-Skip this and both paths above are wasted.
+Skip this one setting and both paths above go to waste.
 
-### Doing it from the command line (verified)
+### From the command line (verified)
 
 ```bash
 # Find your Wi-Fi interface (usually en0)
 networksetup -listallhardwareports | grep -A1 "Wi-Fi"
 
-# Connect now (a successful connect also records it as a known network)
+# Connect now. A successful connect also records it as a known network.
 networksetup -setairportnetwork en0 "MyiPhone" "password"
 
-# Explicitly add it to the preferred list at top priority (index 0)
+# Add it to the preferred list at top priority (index 0)
 networksetup -addpreferredwirelessnetworkatindex en0 "MyiPhone" 0 WPA2PSK "password"
 
-# Check what you're on
+# See what you're on
 networksetup -getairportnetwork en0
 
-# Check preference order (only the top few really matter)
+# See the preference order. Only the top few matter.
 networksetup -listpreferredwirelessnetworks en0 | head
 ```
 
-Why index 0 matters: if the Mac is still on your office or home Wi-Fi when you leave, it walks the **preference order** looking for the next network as you go out of range — put the hotspot near the top so it gets tried first.
+Index 0 earns its place: if the Mac still holds your office Wi-Fi when you leave, it walks the preference order looking for the next network as you go out of range. Put the hotspot near the top and the Mac tries it first.
 
-### Verify it actually auto-connects
+### Prove it joins on its own
 
-Don't trust "it should work." Toggle Wi-Fi off and on and see whether it comes back on its own:
+Don't trust "it should work." Toggle Wi-Fi off and on, then see whether the Mac comes back by itself:
 
 ```bash
 networksetup -setairportpower en0 off
 sleep 5
 networksetup -setairportpower en0 on
 sleep 20
-networksetup -getairportnetwork en0     # should show your hotspot
+networksetup -getairportnetwork en0     # should name your hotspot
 ```
 
 ### Android
 
-There's no Instant Hotspot equivalent (unless you're in a single-vendor ecosystem, e.g. Samsung's Auto Hotspot between its own devices), so it's the fixed SSID + password path only:
+Android gives you no Instant Hotspot equivalent, unless you stay inside one vendor's ecosystem (Samsung does this between its own devices). So you take the fixed SSID path:
 
 1. Settings → Network & internet → Hotspot & tethering → Wi-Fi hotspot
-2. Set a name and password
-3. **🔴 Turn OFF "Turn off hotspot automatically"** (usually under advanced settings)
-4. Connect once from the Mac using the commands above
+2. Set a name and a password
+3. **🔴 Turn OFF "Turn off hotspot automatically"**, which usually hides under advanced settings
+4. Connect once from the Mac with the commands above
 
-Step 3 is the one that matters most on Android: **that option is on by default**, and it shuts the hotspot down after a while with no clients connected. Step into an elevator once, lose the connection, and the hotspot is gone — and your lid is shut, so you won't find out.
+Step 3 carries the most weight on Android. **That option ships on**, and it kills the hotspot after a quiet spell with no clients. Walk into an elevator once, lose the link, and the hotspot goes down. Your lid is shut, so you learn about it when you get there.
 
-### Things you'll actually run into
+### What you will run into
 
-- **The iPhone stops advertising its hotspot when nothing is connected.** Instant Hotspot can wake it over Bluetooth, but both devices need to be in range — phone in your pocket, Mac in your bag is usually fine. On path ② keep "Allow Others to Join" on.
-- **2.4 GHz vs 5 GHz**: the iPhone's "Maximize Compatibility" ON = 2.4 GHz, slower but better penetration; OFF = 5 GHz, faster but shorter range. Phone and Mac in the same bag? 5 GHz is fine. One in a pocket, one in a bag? 2.4 GHz is steadier.
-- **Nothing is protecting your phone's battery.** MAPA watches the Mac's battery, but running a hotspot drains a phone fast — **your phone may die before the Mac does**. Bring a power bank for long runs.
+- **The iPhone stops advertising a hotspot when nothing is connected.** Instant Hotspot wakes it over Bluetooth, but both devices need to sit in range. Phone in your pocket and Mac in your bag works. On path ② leave "Allow Others to Join" on.
+- **2.4 GHz against 5 GHz.** The iPhone's "Maximize Compatibility" ON gives you 2.4 GHz: slower, better through fabric. OFF gives you 5 GHz: faster, shorter reach. Same bag? Take 5 GHz. One in a pocket and one in a bag? 2.4 GHz holds up better.
+- **Nothing guards your phone's battery.** MAPA watches the Mac. Running a hotspot drains a phone fast, and **your phone may die first**. Take a power bank on long runs.
 - **Low Power Mode on the phone hurts hotspot stability.** Turn it off before you go.
-- **MAPA doesn't check the network.** It only watches battery, time, and heat. If you lose connectivity it won't stop — it keeps drawing power until one of its limits trips. So verify with the toggle test above before you leave.
+- **MAPA never checks the network.** It watches battery, time, and heat. Lose connectivity and it keeps drawing power until one of those three trips. Run the toggle test above before you walk out.
 
 ---
 
-## Three things worth understanding first
+## Three things worth knowing first
 
-If you're not deep in macOS power management, these three are enough.
+If macOS power management isn't your daily territory, these three cover it.
 
-### 1. Why closing the lid puts it to sleep, and why `caffeinate` can't help
+### 1. Why the lid puts it to sleep, and why `caffeinate` won't save you
 
-`caffeinate` prevents **idle sleep**. But **closing the lid is a different thing** — macOS clamshell logic wants external power *and* an external display before it'll keep running; without them, it sleeps.
+`caffeinate` blocks idle sleep. **Closing the lid takes a different path.** macOS clamshell logic wants external power and an external display before it keeps running, and without them it sleeps.
 
-To keep running on **battery, with nothing attached, lid shut**, there is exactly one lever:
+To keep going on battery, nothing attached, lid shut, you get one lever:
 
 ```bash
 sudo pmset -a disablesleep 1
 ```
 
-It's a system-wide switch, which is why sudo is needed — and why it **must** be restored on exit (this script restores it on every exit path).
+That switch covers the whole system, which explains the sudo prompt, and explains why the script has to put it back on every exit path.
 
 ### 2. Thermal pressure level
 
-**A closed lid is the worst possible cooling posture.** A machine running flat out inside a bag is a real risk, and it's the main reason this script exists.
+**A closed lid is the worst cooling posture you can pick.** A machine at full tilt inside a bag is a real risk, and it drove most of this script.
 
-But **you can't read CPU temperature on Apple Silicon**: `sysctl` has no die-temp field (only `kern.clockrate` and `hw.tbfrequency`, neither of which is temperature or CPU frequency), `powermetrics` doesn't report die temperature, and reading SMC sensors means a third-party tool — i.e. a dependency.
+You cannot read CPU temperature on Apple Silicon. `sysctl` carries no die temp, only `kern.clockrate` and `hw.tbfrequency`, and neither one is a temperature or a CPU frequency. `powermetrics` reports no die temperature. Reading SMC sensors means installing a third-party tool, which means a dependency.
 
-So the signal used here is macOS's own **thermal pressure level**, a five-step state:
+So the script reads macOS's own **thermal pressure level**, a five-step state:
 
 ```bash
 sudo powermetrics -n 1 -i 200 --samplers thermal | grep "pressure level"
 # → Current pressure level: Nominal
 ```
 
-| Level | What the system is doing |
+| Level | What the system does |
 |---|---|
-| `Nominal` | Comfortable headroom, running at full speed |
-| `Moderate` | Warming up, fans spinning up, clocks normal or lightly trimmed |
-| `Heavy` | **System is throttling**, `CPU_Speed_Limit` drops, background work suppressed |
-| `Trapping` | Close to TjMax, aggressive down-clocking and voltage reduction |
-| `Sleeping` | Throttling no longer contains it — **system force-sleeps or shuts down** to avoid permanent damage |
+| `Nominal` | Plenty of headroom, full speed |
+| `Moderate` | Warming, fans spin up, clocks normal or trimmed |
+| `Heavy` | **The system throttles.** `CPU_Speed_Limit` drops, background work gets suppressed |
+| `Trapping` | Near TjMax. Aggressive down-clocking, voltage cuts |
+| `Sleeping` | Throttling lost the fight. **The system force-sleeps or shuts down** to save the chip |
 
-> ⚠️ That table is community knowledge. **Apple publishes no documentation** mapping these levels to actual temperatures or behaviour, and the mapping varies by model and environment.
+> ⚠️ That table comes from the community. **Apple documents none of it.** No published mapping ties these levels to temperatures, and the mapping shifts by model and environment.
 
 ### 3. E-cores and P-cores
 
-Apple Silicon has two core types: **P-cores** (performance — fast, power-hungry) and **E-cores** (efficiency — slow, frugal). Normally the system decides what runs where.
+Apple Silicon ships two core types. P-cores run fast and drink power. E-cores run slow and sip. The system decides what lands where.
 
-macOS exposes a lever for this via **QoS (Quality of Service)** — mark a process as "background" and the system confines it to E-cores:
+macOS hands you a lever through **QoS**. Mark a process as background and the system pins it to E-cores:
 
 ```bash
-taskpolicy -b -p <pid>    # demote: confine to E-cores
+taskpolicy -b -p <pid>    # demote: pin to E-cores
 taskpolicy -B -p <pid>    # restore
 ```
 
-**The key part is that QoS is inherited by child processes.** A coding agent is one main process that forks `git`, test runners, compilers and so on when it uses tools — demote the parent once and **all of those inherit it automatically**, so none of them suddenly wakes a P-core.
+**Child processes inherit QoS, and that is what makes this worth doing.** A coding agent runs as one process that forks `git`, test runners, and compilers as it works. Demote the parent once and every one of those children inherits the setting, so none of them wakes a P-core behind your back.
 
-When you're out with the lid shut, the agent's work doesn't need P-core speed. Confining it to E-cores saves power and heat. This is the single most useful trick in the script.
+The agent's work has no use for P-core speed once you're out with the lid down. Pin it to E-cores and you save power and heat. This trick does more for the machine than anything else in the script.
 
 ---
 
-## What it actually does
+## What it does
 
 ```
   start ──► install trap (so any interruption still restores)
@@ -219,66 +219,66 @@ When you're out with the lid shut, the agent's work doesn't need P-core speed. C
                        pmset sleepnow              exit 130 (Ctrl+C)
 ```
 
-The three guards respond differently, and the difference matters:
+The three guards respond differently, and the difference carries weight:
 
-| Trigger | Action |
+| Trigger | What the script does |
 |---|---|
-| Battery floor | Wrap up → sleep |
-| Time limit | Wrap up → sleep |
-| Thermal `Heavy` | **Enable low power mode and keep going**; disable it once things settle |
-| Thermal `Trapping` / `Sleeping` | **Wrap up and sleep immediately** (throttling isn't going to save it) |
+| Battery floor | Wrap up, then sleep |
+| Time limit | Wrap up, then sleep |
+| Thermal `Heavy` | **Enable low power mode and keep going.** Disable it once things settle |
+| Thermal `Trapping` / `Sleeping` | **Wrap up and sleep now.** Throttling already lost |
 
-In other words: **`Heavy` is the level that throttling can actually hold; by `Trapping` the script's job is to decide "time to sleep."**
+`Heavy` is the level throttling can still hold. By `Trapping` the script's job narrows to one decision: sleep.
 
-Three deliberate design points:
+Three choices I made on purpose:
 
-1. **The `trap` is installed before the first command that changes system state** (`mapa.sh:157` vs `:160`). Otherwise there's a window where state is already modified but Ctrl+C isn't caught.
-2. **All four exit paths share one `restore_settings()`**, and all four are verified to reach it.
-3. **Restore writes back the original value rather than a hardcoded default.** It records `ORIG_LOW_POWER` at startup and writes that back — it doesn't assume low power mode was off to begin with.
+1. **The `trap` goes in before the first command that changes system state** (`mapa.sh:157` against `:160`). Put it after and you open a window where state has changed but `Ctrl + C` goes nowhere.
+2. **All four exit paths run the same `restore_settings()`.** I verified all four reach it.
+3. **Restore writes back the original value, never a hardcoded default.** The script records `ORIG_LOW_POWER` at startup and writes that back, so it never assumes low power mode started off.
 
 ---
 
-## Things worth knowing
+## Things to know
 
-It's not a product and doesn't try to be perfect. These are the ones you'll actually meet:
+This is a toy and it stays rough in places. You will meet these:
 
-- **Agents started mid-run don't get demoted** — it scans once at startup, no polling.
-- **`kill -9` leaves processes demoted** (`trap` can't catch `SIGKILL`). Manual restore:
+- **Agents you start mid-run stay on P-cores.** The script scans once at startup and never polls.
+- **`kill -9` leaves processes demoted**, because `trap` cannot catch `SIGKILL`. Put them back with:
   ```bash
   pgrep -f "claude" | xargs -I {} taskpolicy -B -p {}
   ```
-- **Thermal decisions are made on a single sample, with no sustained check** — one 100 ms reading of `Trapping` triggers sleep, so in theory a momentary spike could cut a long task short. Hasn't happened in practice, but it's a known weak spot.
-- **One stray `Terminated: 15` line on exit** — the job-control notice from killing the background sudo-keepalive job. Harmless. Fixing it means touching the keepalive loop, which is load-bearing (lose the credential and sleep prevention fails entirely), so it stays.
-- **Piping or `$(...)`-capturing the output can hang for up to 60s** — an orphaned `sleep` still holds the stdout write end. Running it directly in a terminal is unaffected; to save a log use `> file` (redirection doesn't block).
-- **The demotion target is hardcoded to `pgrep -f "claude"`** — change that pattern for a different agent. `pgrep` is case-sensitive, so it won't catch the capital-C Claude Desktop app (verified).
-- **bash 5.x untested** — the test machine only has `/bin/bash` 3.2.57.
+- **One thermal sample decides, with no sustained check.** A single 100 ms reading of `Trapping` sends the machine to sleep, so a momentary spike could cut your task short. I have not seen it happen, and it stays a weak spot.
+- **You get one stray `Terminated: 15` line on exit.** That is the job-control notice from killing the background sudo-keepalive job. Harmless. Fixing it means touching that keepalive loop, and the loop is load-bearing: lose the credential and sleep prevention dies with it. So the line stays.
+- **Piping the output, or capturing it with `$(...)`, can hang for up to 60s.** An orphaned `sleep` still holds the stdout write end. Run it in a terminal and nothing hangs. To save a log, redirect with `> file`.
+- **The demotion target sits hardcoded at `pgrep -f "claude"`.** Change the pattern for a different agent. `pgrep` respects case, so it skips the capital-C Claude Desktop app. I verified that.
+- **I never tested bash 5.x.** The test machine carries `/bin/bash` 3.2.57 and nothing else.
 
 ---
 
-## Want something more full-featured
+## If you want more than a toy
 
-This script's angle is "install nothing, read it in five minutes, change it in one line." If you want a finished product, there are better options.
+This script trades features for "install nothing, read it in five minutes, change it in one line." Two projects beat it on features.
 
-**[keepresso](https://github.com/gyorgysh/keepresso)** (Swift/SwiftUI menu bar app, GPL-3.0) covers nearly everything here and does most of it better — thermal protection can read temperature sensors, has a **sustained** threshold check, boosts fans before pausing the session, and recovers automatically; it also has agent hooks for Claude Code / Cursor / Codex. What it doesn't have is E-core relegation.
+**[keepresso](https://github.com/gyorgysh/keepresso)** (Swift/SwiftUI menu bar app, GPL-3.0) covers nearly everything here and does most of it better. Its thermal protection reads temperature sensors, holds a **sustained** threshold before acting, boosts fans before it pauses your session, and recovers on its own. It also ships agent hooks for Claude Code, Cursor, and Codex. It skips E-core relegation.
 
-**[Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704)** (App Store, free) has sleep prevention plus battery and CPU-utilization triggers, but **no** thermal protection.
+**[Amphetamine](https://apps.apple.com/us/app/amphetamine/id937984704)** (App Store, free) handles sleep prevention plus battery and CPU-utilization triggers. It offers no thermal protection.
 
 | | This script | keepresso | Amphetamine |
 |---|---|---|---|
-| Lid-closed, battery only, no external display | ✓ | ✓ | ✓ |
-| Battery / time limits | ✓ | ✓ richer | ✓ |
+| Lid closed, battery only, no external display | ✓ | ✓ | ✓ |
+| Battery and time limits | ✓ | ✓ richer | ✓ |
 | Thermal protection | ✓ | ✓ more complete | ✗ |
 | **E-core relegation** | ✓ | ✗ | ✗ |
-| **What you have to install** | **nothing** | DMG / Homebrew cask + optional admin helper | App Store; on Apple Silicon, closed-display mode needs a file written to `/private/etc/sudoers.d/` |
+| **What you install** | **nothing** | DMG or Homebrew cask, plus an optional admin helper | App Store. On Apple Silicon, closed-display mode wants a file in `/private/etc/sudoers.d/` |
 
-That last row is the main reason to pick this one: **on a managed corporate laptop, installing a third-party app, a Homebrew cask, or writing into `/private/etc/sudoers.d/` can all fail review. A bash script you can read usually doesn't.**
+That last row decides it for some people. **Your IT review may block a third-party app, a Homebrew cask, or a write into `/private/etc/sudoers.d/`. A bash script you can read in five minutes usually clears.**
 
 ---
 
 ## Going deeper
 
-Everything you need to *use* it is above. If you want to modify it, or want to know what went wrong while building it, that's all in **[NOTES.md](NOTES.md)**:
+Everything you need to run it sits above. **[NOTES.md](NOTES.md)** holds the rest:
 
-- **Pitfalls hit** — `taskpolicy -c background -p` returns exit 0 while doing nothing at all; `nice` is not a QoS indicator; why "restore" must not re-run `pgrep`; measured evidence that E-core relegation works; why you should *not* demote every process (62% are already there); which processes will bite you if you touch them; `pmset -g therm` is empty most of the time on Apple Silicon; background processes have `SIGINT` ignored, which produces false-negative tests; blacklist vs whitelist as a fail-safe trade-off
-- **How it was verified** — shims to isolate system commands (no real power settings were ever changed on the test machine), stateful shims to force state-transition branches, a wrapper + allowlist for when you must touch real processes, and the eleven scenarios covered
-- **Three principles worth taking away**
+- **Pitfalls.** `taskpolicy -c background -p` returns exit 0 and changes nothing. `nice` tells you nothing about QoS. Why "restore" must not re-run `pgrep`. Measured evidence that E-core relegation works. Why demoting every process backfires, since 62% already sit there. Which processes bite back when you touch them. `pmset -g therm` sits empty on Apple Silicon most of the time. Background processes ignore `SIGINT`, which hands you a test that always passes. Blacklist against allowlist as a fail-safe choice.
+- **How I verified it.** Shims that isolate system commands, so no real power setting ever changed on the test machine. Stateful shims that force state-transition branches. A wrapper plus allowlist for the cases that need real processes. The eleven scenarios I covered.
+- **Four principles worth taking with you.**
